@@ -1,0 +1,3 @@
+mediapipe==0.10.21            # pulls in opencv-contrib-python; do not also install opencv-python
+numpy==1.26.4
+onnxruntime==1.30.0           # for the ONNX landmark backend (on Snapdragon use onnxruntime-qnn)
