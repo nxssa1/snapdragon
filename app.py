@@ -28,6 +28,7 @@ LOG_DIR = os.path.join(HERE, "logs")
 PANEL_W = 400
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WHITE, GREY, GREEN, AMBER, RED, CYAN = (240, 240, 240), (150, 150, 150), (80, 200, 80), (0, 190, 255), (70, 70, 230), (220, 200, 60)
+GURU = (230, 170, 255)
 
 
 def open_camera(index, width, height):
@@ -87,7 +88,15 @@ def score_color(score):
     return GREEN if score >= 0.7 else AMBER if score >= 0.45 else RED
 
 
-def render_detect(p, ranked):
+def render_fix(p, mudra, fix, coach):
+    p.text("Fix:", AMBER)
+    p.wrapped(fix.hint, AMBER)
+    if coach is not None and coach.status != "unavailable":
+        line = coach.line(mudra, fix.hint)
+        p.wrapped(f"Guru: {line}" if line else "Guru is thinking...", GURU)
+
+
+def render_detect(p, ranked, coach=None):
     p.text("DETECT", GREY, 0.5)
     if ranked is None:
         p.text("Show one hand to the camera", AMBER, 0.6)
@@ -101,8 +110,7 @@ def render_detect(p, ranked):
         p.text(f"({MUDRAS[best.name]['meaning']})  {best.score:.0%}", GREY)
         p.bar(best.score, score_color(best.score))
     if best.corrections and best.corrections[0].match < 0.9:
-        p.text("Fix:", AMBER)
-        p.wrapped(best.corrections[0].hint, AMBER)
+        render_fix(p, best.name, best.corrections[0], coach if best.score >= 0.45 else None)
     p.space()
     p.text("Also close:", GREY, 0.5)
     for s in ranked[1:4]:
@@ -111,7 +119,7 @@ def render_detect(p, ranked):
     return landmarks_for_feature(best.corrections[0].feature) if best.corrections and best.score >= 0.3 else ()
 
 
-def render_practice(p, session, ranked, target_score, progress):
+def render_practice(p, session, ranked, target_score, progress, coach=None):
     name = session.target
     p.text("PRACTICE  (N/P to change)", GREY, 0.5)
     p.text(name, WHITE, 0.95, 2, 34)
@@ -130,8 +138,7 @@ def render_practice(p, session, ranked, target_score, progress):
         p.bar(progress, GREEN)
         if target_score.corrections and target_score.score < session.threshold + 0.2:
             fix = target_score.corrections[0]
-            p.text("Fix:", AMBER)
-            p.wrapped(fix.hint, AMBER)
+            render_fix(p, name, fix, coach)
             highlight = landmarks_for_feature(fix.feature)
         elif ranked[0].name != name:
             p.text(f"Looks like {ranked[0].name}", AMBER)
@@ -176,10 +183,15 @@ def main():
     ap.add_argument("--hold", type=float, default=2.0, help="seconds to hold a mudra in practice mode")
     ap.add_argument("--threshold", type=float, default=0.7, help="match needed to count as holding")
     ap.add_argument("--no-mirror", action="store_true")
+    ap.add_argument("--no-coach", action="store_true", help="skip the Qwen3 coaching line")
     args = ap.parse_args()
 
     cap = open_camera(args.camera, args.width, args.height)
     tracker = make_tracker(args.backend, args.ep)
+    coach = None
+    if not args.no_coach:
+        from mudraguru.coach import Coach
+        coach = Coach()  # loads on its own thread; the video starts immediately
     smoother = FeatureSmoother(alpha=0.5)
     session = PracticeSession(MUDRAS, os.path.join(LOG_DIR, "practice_log.csv"), args.hold, args.threshold)
     mode, debug, fps, last = args.mode, False, 0.0, time.perf_counter()
@@ -209,9 +221,9 @@ def main():
         panel = Panel(canvas, w)
         if mode == "practice":
             target_score, progress, _ = session.update(ranked)
-            highlight = render_practice(panel, session, ranked, target_score, progress)
+            highlight = render_practice(panel, session, ranked, target_score, progress, coach)
         else:
-            highlight = render_detect(panel, ranked)
+            highlight = render_detect(panel, ranked, coach)
         if hands:
             draw_hand(canvas, hands[0].landmarks, set(highlight))
         if debug and feats:
@@ -245,6 +257,8 @@ def main():
 
     cap.release()
     tracker.close()
+    if coach:
+        coach.close()
     cv2.destroyAllWindows()
 
 

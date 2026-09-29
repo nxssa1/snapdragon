@@ -3,3 +3,4 @@
 __pycache__/
 logs/
 bench/*.csv
+models/Qwen3-0.6B/

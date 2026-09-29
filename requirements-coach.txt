@@ -1,0 +1,5 @@
+# Optional: the Qwen3 coaching line. Without these the app still runs and shows the plain hints.
+#   pip install -r requirements-coach.txt --extra-index-url https://download.pytorch.org/whl/cpu
+#   python tools/download_coach_model.py        (Qwen/Qwen3-0.6B, ~1.5 GB, Apache-2.0)
+torch==2.14.0
+transformers==5.17.0
