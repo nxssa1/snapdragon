@@ -1,5 +1,5 @@
 .venv/
+.venv-export/
 __pycache__/
 logs/
-*.onnx
-*.bin
+bench/*.csv

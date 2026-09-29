@@ -2,7 +2,8 @@
 
     python app.py                 # detect mode
     python app.py --mode practice
-    python app.py --benchmark 200 # headless: time the camera + landmark pipeline, no window
+    python app.py --ep cpu        # force an execution provider (auto: qnn > dml > cpu)
+    python app.py --backend mediapipe   # fallback: MediaPipe pip package
 
 Keys: M switch detect/practice   N / P next / previous target   D debug features
       C save a feature sample (for tuning)   Q or Esc quit
@@ -162,58 +163,23 @@ def save_sample(feats, label):
     return path
 
 
-def run_benchmark(args):
-    cap = open_camera(args.camera, args.width, args.height)
-    tracker = make_tracker(args.backend)
-    for _ in range(10):  # warm-up: camera exposure + first inference
-        ok, frame = cap.read()
-        if ok:
-            tracker.process(frame)
-    t_cap = t_inf = 0.0
-    frames = detected = 0
-    shape = None
-    t0 = time.perf_counter()
-    while frames < args.benchmark:
-        a = time.perf_counter()
-        ok, frame = cap.read()
-        b = time.perf_counter()
-        if not ok:
-            break
-        hands = tracker.process(frame)
-        c = time.perf_counter()
-        t_cap += b - a
-        t_inf += c - b
-        frames += 1
-        detected += bool(hands)
-        shape = frame.shape
-    total = time.perf_counter() - t0
-    cap.release()
-    tracker.close()
-    if not frames:
-        raise SystemExit("Camera opened but returned no frames.")
-    print(f"backend={args.backend} frame={shape[1]}x{shape[0]} frames={frames}")
-    print(f"end-to-end {frames / total:.1f} FPS | camera read {1000 * t_cap / frames:.1f} ms | "
-          f"landmarks {1000 * t_inf / frames:.1f} ms/frame | hand seen in {detected}/{frames} frames")
-
-
 def main():
     ap = argparse.ArgumentParser(description="MudraGuru: Bharatanatyam hasta mudra tutor")
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=720)
-    ap.add_argument("--backend", default="mediapipe")
+    ap.add_argument("--backend", choices=["onnx", "mediapipe"], default="onnx",
+                    help="onnx = Qualcomm AI Hub MediaPipe-Hand model; mediapipe = pip package fallback")
+    ap.add_argument("--ep", choices=["auto", "qnn", "dml", "cpu"], default="auto",
+                    help="ONNX Runtime execution provider for --backend onnx (auto: qnn > dml > cpu)")
     ap.add_argument("--mode", choices=["detect", "practice"], default="detect")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds to hold a mudra in practice mode")
     ap.add_argument("--threshold", type=float, default=0.7, help="match needed to count as holding")
     ap.add_argument("--no-mirror", action="store_true")
-    ap.add_argument("--benchmark", type=int, metavar="N", help="time N frames headless and exit")
     args = ap.parse_args()
 
-    if args.benchmark:
-        return run_benchmark(args)
-
     cap = open_camera(args.camera, args.width, args.height)
-    tracker = make_tracker(args.backend)
+    tracker = make_tracker(args.backend, args.ep)
     smoother = FeatureSmoother(alpha=0.5)
     session = PracticeSession(MUDRAS, os.path.join(LOG_DIR, "practice_log.csv"), args.hold, args.threshold)
     mode, debug, fps, last = args.mode, False, 0.0, time.perf_counter()
@@ -239,7 +205,7 @@ def main():
 
         h, w = frame.shape[:2]
         canvas = np.full((max(h, 720), w + PANEL_W, 3), 32, np.uint8)
-        canvas[:, :w] = frame
+        canvas[:h, :w] = frame
         panel = Panel(canvas, w)
         if mode == "practice":
             target_score, progress, _ = session.update(ranked)

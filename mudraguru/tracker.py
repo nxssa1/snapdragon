@@ -2,9 +2,10 @@
 
 Every backend returns the same thing -- a Hand with a (21, 3) landmark array in
 pixel units (x*width, y*height, z*width) -- so the rest of the app does not care
-which model produced it. The MediaPipe pip package is the development backend;
-the Qualcomm AI Hub MediaPipe-Hand ONNX export (QNN on Snapdragon, CPU/DirectML
-elsewhere) is meant to slot in as a second backend with the same interface.
+which model produced it:
+  onnx       Qualcomm AI Hub MediaPipe-Hand-Detection via ONNX Runtime (onnx_hand.py);
+             execution provider QNN on Snapdragon, DirectML or CPU elsewhere.
+  mediapipe  the MediaPipe pip package (TFLite on CPU), kept as a fallback.
 """
 from dataclasses import dataclass
 
@@ -22,7 +23,7 @@ class Hand:
 class MediaPipeTracker:
     name = "mediapipe"
 
-    def __init__(self, max_hands=1, min_detection=0.6, min_tracking=0.5, model_complexity=1):
+    def __init__(self, max_hands=1, min_detection=0.6, min_tracking=0.5, model_complexity=1, **_):
         import mediapipe as mp
         self._hands = mp.solutions.hands.Hands(
             static_image_mode=False,
@@ -50,10 +51,18 @@ class MediaPipeTracker:
         self._hands.close()
 
 
-BACKENDS = {"mediapipe": MediaPipeTracker}
+def _onnx_tracker(**kwargs):
+    from mudraguru.onnx_hand import OnnxHandTracker
+    return OnnxHandTracker(**kwargs)
 
 
-def make_tracker(name="mediapipe", **kwargs):
+BACKENDS = {"onnx": _onnx_tracker, "mediapipe": MediaPipeTracker}
+
+
+def make_tracker(name="onnx", ep="auto", **kwargs):
+    """name: onnx (Qualcomm AI Hub model, execution provider from `ep`) or mediapipe (pip package)."""
     if name not in BACKENDS:
         raise ValueError(f"unknown backend {name!r}; available: {', '.join(BACKENDS)}")
+    if name == "onnx":
+        kwargs["ep"] = ep
     return BACKENDS[name](**kwargs)
