@@ -33,6 +33,8 @@ EXAMPLES = [
 ]
 
 
+FINGER_WORDS = {"thumb", "index", "middle", "ring", "little"}
+
 # Largest value each feature can take, by name prefix: a range ending there has no "too high" hint.
 FEATURE_MAX = {"ext_": 1.0, "thumb_angle": 180.0, "spread_": 180.0, "touch_": 5.0}
 
@@ -134,6 +136,11 @@ class Coach:
             return hint + "."
         if len(line) > 140:
             line = line[:140].rsplit(" ", 1)[0] + "..."
+        # A small model sometimes drifts to a different finger (or copies an example); the plain hint
+        # is better than a confident wrong instruction.
+        lower = line.lower()
+        if not all(w in lower for w in hint.lower().split() if w in FINGER_WORDS):
+            return hint + "."
         return line
 
     def _next_job(self):
