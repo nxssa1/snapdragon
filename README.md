@@ -120,6 +120,22 @@ To measure it yourself, run `python benchmark.py --eps qnn cpu --no-mediapipe` o
 `python tools/aihub_profile.py` against AI Hub cloud devices (needs an AI Hub API token); details are in
 `bench/results.md`.
 
+## License and third-party notices
+
+MudraGuru's own code is released under the [MIT License](LICENSE). The repository also includes or
+downloads the following third-party works, each under its own licence:
+
+- **MediaPipe-Hand-Detection** (`models/hand_detector.onnx`, `models/hand_landmark_detector.onnx`,
+  `models/anchors_palm.npy`): the Qualcomm AI Hub model `mediapipe_hand`, based on Google MediaPipe Hands and
+  the [MediaPipePyTorch](https://github.com/zmurez/MediaPipePyTorch) port. Apache License 2.0. Exported to ONNX
+  unmodified, apart from the format conversion.
+- **Qwen3-0.6B** by the Qwen team, Alibaba Cloud ([Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B)):
+  Apache License 2.0. Downloaded at setup and not redistributed here.
+- **qai-hub-models** by Qualcomm Technologies, Inc.: BSD-3-Clause. The palm-decode / ROI / landmark
+  post-processing in `mudraguru/onnx_hand.py` is adapted from its mediapipe app, and `tests/sample_hand.jpeg`
+  is its public sample input for `mediapipe_hand`.
+- **MediaPipe** (optional fallback backend, pip `mediapipe`) by Google: Apache License 2.0.
+
 ## Tests
 
 ```

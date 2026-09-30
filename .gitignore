@@ -1,6 +1,11 @@
 .venv/
 .venv-export/
 __pycache__/
+# practice logs, saved feature samples, coach cache -- personal, never committed
 logs/
 bench/*.csv
-models/Qwen3-0.6B/
+# large model weights are downloaded by tools/download_coach_model.py
+models/Qwen3-*/
+# credentials
+.env
+*.ini
